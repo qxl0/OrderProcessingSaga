@@ -1,13 +1,20 @@
 package com.qiang.OrderService.command.api.saga;
 
+import com.qiang.CommonService.commands.CompleteOrderCommand;
+import com.qiang.CommonService.commands.ShipOrderCommand;
 import com.qiang.CommonService.commands.ValidatePaymentCommand;
+import com.qiang.CommonService.events.OrderCompletedEvent;
+import com.qiang.CommonService.events.OrderShippedEvent;
+import com.qiang.CommonService.events.PaymentProcessedEvent;
 import com.qiang.CommonService.model.CardDetails;
 import com.qiang.CommonService.model.User;
 import com.qiang.CommonService.queries.GetUserPaymentDetailsQuery;
 import com.qiang.OrderService.command.api.events.OrderCreatedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.axonframework.commandhandling.gateway.CommandGateway;
+import org.axonframework.eventhandling.EventHandler;
 import org.axonframework.messaging.responsetypes.ResponseTypes;
+import org.axonframework.modelling.saga.EndSaga;
 import org.axonframework.modelling.saga.SagaEventHandler;
 import org.axonframework.modelling.saga.StartSaga;
 import org.axonframework.queryhandling.QueryGateway;
@@ -54,4 +61,38 @@ public class OrderProcessingSaga {
         commandGateway.sendAndWait(validatePaymentCommand);
     }
 
+    @SagaEventHandler(associationProperty = "orderId")
+    private void handle(PaymentProcessedEvent event){
+        log.info("PaymentProcessedEvent in Saga for Order Id: {}",
+                event.getOrderId());
+        try {
+            ShipOrderCommand shipOrderCommand =
+                    ShipOrderCommand.builder()
+                            .shipmentId(UUID.randomUUID().toString())
+                            .orderId(event.getOrderId())
+                            .build();
+            commandGateway.send(shipOrderCommand);
+        } catch(Exception e){
+           log.error(e.getMessage());
+           // start commensating transaction
+        }
+    }
+
+    @SagaEventHandler(associationProperty = "orderId")
+    public void handle(OrderShippedEvent event){
+        log.info("OrderShippedEvent in Saga for Order Id; {}",
+                event.getOrderId());
+        CompleteOrderCommand completeOrderCommand =
+                CompleteOrderCommand.builder()
+                        .orderId(event.getOrderId())
+                        .orderStatus("APPROVED")
+                        .build();
+        commandGateway.send(completeOrderCommand);
+    }
+
+    @EndSaga
+    @SagaEventHandler(associationProperty = "orderId")
+    public void handle(OrderCompletedEvent event){
+       log.info("OrderComletedEvent in Saga for Order Id: {}", event.getOrderId());
+    }
 }

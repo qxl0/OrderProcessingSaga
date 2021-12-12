@@ -1,5 +1,7 @@
 package com.qiang.OrderService.command.api.aggregate;
 
+import com.qiang.CommonService.commands.CompleteOrderCommand;
+import com.qiang.CommonService.events.OrderCompletedEvent;
 import com.qiang.OrderService.command.api.command.CreateOrderCommand;
 import com.qiang.OrderService.command.api.events.OrderCreatedEvent;
 import org.axonframework.commandhandling.CommandHandler;
@@ -42,5 +44,23 @@ public class OrderAggregate {
         this.quantity = event.getQuantity();
         this.productId = event.getProductId();
         this.addressId = event.getAddressId();
+    }
+
+    @CommandHandler
+    public void handle(CompleteOrderCommand completeOrderCommand){
+       // validate
+       // Publish OrderCompletedEvent
+        OrderCompletedEvent orderCompletedEvent =
+            OrderCompletedEvent.builder()
+                    .orderId(completeOrderCommand.getOrderId())
+                    .orderStatus(completeOrderCommand.getOrderStatus())
+                    .build();
+
+        AggregateLifecycle.apply(orderCompletedEvent);
+    }
+
+    @EventSourcingHandler
+    public void on(OrderCompletedEvent event){
+        this.orderStatus = event.getOrderStatus();
     }
 }
